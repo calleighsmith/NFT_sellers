@@ -1,0 +1,80 @@
+---
+title: "NFT Seller Profiles"
+author: "Calleigh Smith"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning=F, message=F)
+```
+
+```{r}
+# load packages
+library(tidyverse)
+library(dplyr)
+library(gtsummary)
+# load data set
+sellers <- read_csv("NFT_sellers.csv")%>%
+  rename(no_items = `no_items (thousands)`,
+         no_owners = `no_owners (thousands)`,
+         volume_traded = `volume_traded (ethereum)`,
+         floor_price = `floor_price (ethereum)`,
+         collaboration = `artist_curation/collaboration`)
+```
+
+```{r}
+# impute missing values
+floor_price_imputation = mean(sellers$floor_price, na.rm = T)
+avg_price_imputation = mean(sellers$avg_price,na.rm=T)
+
+# wrangle data
+sellers <- sellers %>%
+  mutate(collaboration = case_when(
+    collaboration == 1 ~ "Yes",
+    collaboration == 0 ~ "No"),
+    featured_auction = case_when(
+    featured_auction == 1 ~ "Yes",
+    featured_auction == 0 ~ "No"),
+    algorithm = case_when(
+    algorithm == 1 ~ "Yes",
+    algorithm == 0 ~ "No"),
+    collaboration = fct_relevel(collaboration, c("No", "Yes")),
+    featured_auction = fct_relevel(featured_auction, c("No", "Yes")),
+    algorithm = fct_relevel(algorithm, c("No", "Yes")),
+    avg_price = ifelse(is.na(avg_price), avg_price_imputation, avg_price),
+    floor_price = ifelse(is.na(floor_price), floor_price_imputation, floor_price))
+#glimpse(sellers)
+```
+
+```{r}
+# plot numerical variables with the response
+plot(sellers$volume_traded,sellers$no_items)
+plot(sellers$volume_traded,sellers$no_owners)
+plot(sellers$volume_traded,sellers$floor_price)
+plot(sellers$volume_traded,sellers$year_first_sale)
+plot(sellers$volume_traded,sellers$avg_price)
+plot(sellers$volume_traded,sellers$twitter_followers)
+```
+
+```{r}
+# fit model
+m <- lm(volume_traded ~ category + no_items + no_owners + floor_price + year_first_sale + avg_price + twitter_followers + algorithm + collaboration + featured_auction, sellers)
+# plot diagnostics
+plot(m)
+```
+
+```{r}
+# display model
+var_labels <- list(category ~ "Category", no_items ~ "No. Items", no_owners ~ "No. Owners", 
+                  floor_price ~ "Floor Price (Ethereum)", year_first_sale ~ "Year of First Sale",
+                  avg_price ~ "Average Price (Ethereum)", twitter_followers ~ "No. Twitter Followers",
+                  algorithm ~ "Algorithmically Generated?", collaboration ~ "Collaboration of Artists?",
+                  featured_auction ~ "Featured in a Traditional Auction?")
+m %>%
+  tbl_regression(pvalue_fun = function(x) style_pvalue(x, digits = 2),
+                 label = var_labels) %>%
+  bold_p(t = 0.05) %>%
+  bold_labels() %>% 
+  italicize_levels() %>%
+  as_gt()
+```
